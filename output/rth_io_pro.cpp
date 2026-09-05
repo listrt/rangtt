@@ -200,7 +200,7 @@ namespace rth_io{
                 a=-a;
             }
             
-            unsigned long long ip =(unsigned long long)a;
+            unsigned long long ip = (unsigned long long)a;
             long double frac=a-(long double)ip;
             
             char buf[32];
@@ -326,7 +326,171 @@ namespace rttype{
         return a;
     }
 }
+namespace rttype{
+    namespace constexprout{
+        struct constexprout_t{
+            char c[256]={};
+        };
+        //template<typename T>
+        //static inline constexpr rttype::constexprout_t operator<<(constexprout_t a,double b){
+        //    char c[20]=rttype::out_fn::fp();
+        //}
+        struct ret{
+            char c[64]={};
+            char* p;
+            unsigned l=0;
+        };
+        static constexpr char* lltoa(long long val, char* buf){
+	        char* p=buf+20;
+	        *p^=(*p);
+	        unsigned long long u=0;
+	        if(val<0){
+	            u = (unsigned long long)(-val);
+	            do{
+	                unsigned long long rem = u % 10;
+	                *--p='0' | (char)rem;
+	                u /= 10;
+	            }while(u);
+	            *--p='-';
+	        }
+	        else{
+	            u=(unsigned long long)val;
+	            do{
+	                unsigned long long rem = u%10;
+	                *--p='0' | (char)rem;
+	                u/=10;
+	            }while (u);
+	        }
+	        return p;
+	    }   
+	    static constexpr char* ulltoa(unsigned long long val, char* buf){
+	        char* p=buf+20;
+	        *p^=(*p);
+	        do{
+	            unsigned long long rem = val % 10;
+	            *--p='0' | (char)rem;
+	            val/=10;
+	        }while(val);
+	        return p;
+	    }
+        namespace out_fn{
+        static inline constexpr ret si(long long a) {
+            ret b{};
+            b.l = 0;
+            char* p = rttype::constexprout::lltoa(a, b.c);
+            unsigned len = 0;
+            while (p[len]) len++;
+            if (p != b.c) {
+                for (unsigned i = 0; i < len; i++) {
+                    b.c[i] = p[i];
+                }
+            }
+            b.l = len;
+            return b;
+        }
 
+        static inline constexpr ret ui(unsigned long long a) {
+            ret b{};
+            char* p=rttype::constexprout::ulltoa(a, b.c);
+            unsigned len=0;
+            while(p[len])len++;
+            if (p != b.c) {
+                for (unsigned i = 0; i < len; i++) {
+                    b.c[i]=p[i];
+                }
+            }
+            b.l=len;
+            return b;
+        }
+        static inline constexpr ret ch(char c){
+            ret b{};
+            b.c[0]=c;
+            b.l=1;
+            return b;
+        }
+        static inline constexpr ret cp(char* c) {
+            ret b{};
+            b.l=0;
+            while (c[b.l] && b.l < 63) {
+                b.c[b.l] = c[b.l];
+                b.l++;
+            }
+            if(c[64] && b.l==63){b.p=c;}
+            b.c[b.l]=0;
+            return b;
+        }
+        template<typename T>//ptr
+        static inline constexpr ret vp(T* a){
+	        #if __cplusplus>=201103L
+            ret b{};
+            b.c[0]='0';
+            b.c[1]='x';
+            unsigned long long ax=(unsigned long long)a;
+            for (int i=0; i<rttype::ptr_w_rt; i++) {
+			        int shift=(rttype::ptr_w_rt-1-i) <<2;
+			        b.c[2+i]=rttype::hexlist[(ax>>shift)&0xF];
+			    }
+			b.l=rttype::ptr_w_rt+2;
+            return b;
+            #else
+            ret b{};
+            b.c[0]='0';
+            b.c[1]='x';
+            unsigned long long ax=(unsigned long long)a;
+            for (int i=0;i<rttype::ptr_w_rt; i++) {
+			        int shift=(rttype::ptr_w_rt-1-i)<<2;
+			        b.c[2+i]=rttype::hexlist[(ax>>shift)&0xF];
+			}
+            b.l=rttype::ptr_w_rt+2;
+            return b;
+            #endif
+        }
+        static ret fp(long double a) {
+            ret b{};
+            if (a == 0.0L || a == -0.0L) {
+                b.c[0] = 48;//0
+                b.l=1;
+                return b;
+            }
+            unsigned idx = 0;
+            if(a<0){
+                b.c[idx++] = '-';
+                a=-a;
+            }
+            const long double MAX_ULL = (long double)0xFFFFFFFFFFFFFFFFULL;
+            if (a > MAX_ULL) {
+                b.c[0] = 73;//I
+                b.c[1] = 78;//N
+                b.c[2] = 70;//F
+                b.l=3;
+                return b;
+            }
+            unsigned long long ip = (unsigned long long)a;
+            long double frac = a - (long double)ip;
+            char buf[32];
+            int bi = 0;
+            do {
+                buf[bi++] = '0' + (int)(ip % 10);
+                ip /= 10;
+            } while (ip);
+            while (bi--) b.c[idx++] = buf[bi];
+            b.c[idx++] = '.';
+            for (int i = 0; i < 6; i++) {
+                frac *= 10;
+                int digit = (int)frac;
+                b.c[idx++] = '0' + digit;
+                frac -= digit;
+            }
+            while (idx > 0 && b.c[idx - 1] == '0') idx--;
+            if (idx > 0 && b.c[idx - 1] == '.') {
+                b.c[idx++] = '0';
+            }
+            b.l = idx;
+            return b;
+        }
+    }
+    }
+}
 
 #endif
 #endif/**/
