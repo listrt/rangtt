@@ -588,5 +588,212 @@ namespace rttype{
     }
 }
 
+namespace rttype{
+    namespace fastout{
+        template<unsigned N=256>
+        struct fastout_t{
+            char c[N]={};
+            unsigned l=0;
+        };
+        template<unsigned N=64>
+        struct ret{
+            char c[N]={};
+            char* p=0;
+            unsigned l=0;
+        };
+        struct out{};
+        namespace out_fn{
+            template<unsigned N=64>
+            static inline ret<N> si(long long a) {
+                ret<N> b{};
+                char tmp[21];
+                char* p = rth_io::lltoa(a, tmp);
+                unsigned len = 0;
+                while (p[len]) len++;
+                for (unsigned i = 0; i < len && i < N; i++) {
+                    b.c[i] = p[i];
+                }
+                b.l = len;
+                return b;
+            }
+            template<unsigned N=64>
+            static inline ret<N> ui(unsigned long long a) {
+                ret<N> b{};
+                char tmp[21];
+                char* p = rth_io::ulltoa(a, tmp);
+                unsigned len = 0;
+                while (p[len]) len++;
+                for (unsigned i = 0; i < len && i < N; i++) {
+                    b.c[i] = p[i];
+                }
+                b.l = len;
+                return b;
+            }
+            template<unsigned N=64>
+            static inline ret<N> ch(char c){
+                ret<N> b{};
+                b.c[0]=c;
+                b.l=1;
+                return b;
+            }
+            template<unsigned N=64>
+            static inline ret<N> cp(const char* c) {
+                ret<N> b{};
+                b.l=0;
+                while (c[b.l] && b.l < N-1) {
+                    b.c[b.l] = c[b.l];
+                    b.l++;
+                }
+                if(b.l==N-1 && c[N-1]){b.p=const_cast<char*>(c);}
+                b.c[b.l]=0;
+                return b;
+            }
+            template<unsigned N=64,typename T>
+            static inline ret<N> vp(T* a){
+                ret<N> b{};
+                b.c[0]='0';
+                b.c[1]='x';
+                unsigned long long ax=(unsigned long long)a;
+                for (int i=0; i<rttype::ptr_w_rt; i++) {
+                    int shift=(rttype::ptr_w_rt-1-i) <<2;
+                    b.c[2+i]=rttype::hexlist[(ax>>shift)&0xF];
+                }
+                b.l=rttype::ptr_w_rt+2;
+                return b;
+            }
+            template<unsigned N=64>
+            static inline ret<N> fp(long double a) {
+                ret<N> b{};
+                if (a == 0.0L || a == -0.0L) {
+                    b.c[0] = 48;//0
+                    b.l=1;
+                    return b;
+                }
+                unsigned idx = 0;
+                if(a<0){
+                    b.c[idx++] = 45;//-
+                    a=-a;
+                }
+                const long double MAX_ULL = (long double)0xFFFFFFFFFFFFFFFFULL;
+                if (a > MAX_ULL) {
+                    b.c[0] = 73;//I
+                    b.c[1] = 78;//N
+                    b.c[2] = 70;//F
+                    b.l=3;
+                    return b;
+                }
+                unsigned long long ip = (unsigned long long)a;
+                long double frac = a - (long double)ip;
+                char buf[32];
+                int bi = 0;
+                do {
+                    buf[bi++] = 48 ^ (int)(ip % 10);
+                    ip /= 10;
+                } while (ip);
+                while (bi--) b.c[idx++] = buf[bi];
+                b.c[idx++] = 46;//'.'
+                for (int i = 0; i < 6; i++) {
+                    frac *= 10;
+                    int digit = (int)frac;
+                    b.c[idx++] = 48 ^ digit;
+                    frac -= digit;
+                }
+                while (idx > 0 && b.c[idx - 1] == 48) idx--;
+                if (idx > 0 && b.c[idx - 1] == 46) {//'.'
+                    b.c[idx++] = 48;
+                }
+                b.l = idx;
+                return b;
+            }
+        }
+        template<unsigned N=64>
+        static inline ret<N> outf(char a){
+            ret<N> b{};
+            b.l=1;
+            b.c[0]=a;
+            return b;
+        }
+        template<unsigned N=64>
+        static inline ret<N> outf(float a){
+            return out_fn::fp<N>(a);
+        }
+        template<unsigned N=64>
+        static inline ret<N> outf(double a){
+            return out_fn::fp<N>(a);
+        }
+        template<unsigned N=64>
+        static inline ret<N> outf(long double a){
+            return out_fn::fp<N>(a);
+        }
+        template<unsigned N=64>
+        static inline ret<N> outf(bool a){
+            ret<N> b{};
+            b.l=1;
+            b.c[0]=a?49:48;
+            return b;
+        }
+        template<unsigned N=64,typename T>
+        static inline ret<N> outf(T* a){
+            return out_fn::vp<N>(a);
+        }
+        template<unsigned N=64,typename T>
+        static inline ret<N> outf(T a) {
+            ret<N> b{};
+            if(rth_io::is_integer<T>::v){
+                if(rth_io::is_unsigned_integer<T>::v){
+                    b=out_fn::ui<N>(a);
+                }else{
+                    b=out_fn::si<N>(a);
+                }
+            }else if(rth_io::is_charptr<T>::v){
+                b=out_fn::cp<N>(a);
+            }else{
+                b=out_fn::si<N>(int(a));
+            }
+            return b;
+        }
+#define fdf_rt(T) template<unsigned N>\
+    static inline fastout_t<N> operator<<(fastout_t<N> a, T b) {\
+        ret<N> r = outf<N>(b);\
+        for (unsigned i = 0; i < r.l && (a.l + i) < N; i++)\
+        { a.c[a.l + i] = r.c[i]; }\
+        if (a.l + r.l > N) a.l = N;\
+        else a.l += r.l;\
+        return a;\
+    }
+        fdf_rt(double);
+        fdf_rt(float);
+        fdf_rt(long double);
+        fdf_rt(int);
+        fdf_rt(unsigned);
+        fdf_rt(long);
+
+        template<unsigned N>
+        static inline fastout_t<N> operator<<(fastout_t<N> a, rttype::fastout::out b){
+            writer(a.c,a.l);
+            return a;
+        }
+
+        template<unsigned N,typename T>
+        static inline fastout_t<N> operator<<(fastout_t<N> a, T b){
+            ret<N> r=outf<N>(b);
+            unsigned i=0;
+            if(r.p){
+                while(i<r.l&&(a.l+i)<N) {
+                    a.c[a.l+i]=r.c[i];
+                    i++;
+                }
+                a.l+=i;
+                return a;
+            }
+            for(;i<r.l && (a.l+i)<N;i++){
+                a.c[a.l+i]=r.c[i];
+            }
+            a.l+=i;
+            return a;
+        }
+        //
+    }
+}
 #endif
 #endif/**/
