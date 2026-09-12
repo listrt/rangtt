@@ -328,15 +328,18 @@ namespace rttype{
 }
 namespace rttype{
     namespace constexprout{
+        template<unsigned N=256>
         struct constexprout_t{
-            char c[256]={};
+            char c[N]={};
+            unsigned l=0;
         };
         //template<typename T>
         //static inline constexpr rttype::constexprout_t operator<<(constexprout_t a,double b){
         //    char c[20]=rttype::out_fn::fp();
         //}
+        template<unsigned N=64>
         struct ret{
-            char c[64]={};
+            char c[N]={};
             char* p;
             unsigned l=0;
         };
@@ -348,7 +351,7 @@ namespace rttype{
 	            u = (unsigned long long)(-val);
 	            do{
 	                unsigned long long rem = u % 10;
-	                *--p='0' | (char)rem;
+	                *--p=48 | (char)rem;
 	                u /= 10;
 	            }while(u);
 	            *--p='-';
@@ -357,7 +360,7 @@ namespace rttype{
 	            u=(unsigned long long)val;
 	            do{
 	                unsigned long long rem = u%10;
-	                *--p='0' | (char)rem;
+	                *--p=48 | (char)rem;
 	                u/=10;
 	            }while (u);
 	        }
@@ -374,8 +377,9 @@ namespace rttype{
 	        return p;
 	    }
         namespace out_fn{
-        static inline constexpr ret si(long long a) {
-            ret b{};
+        template<unsigned N=64>
+        static inline constexpr ret<N> si(long long a) {
+            ret<N> b{};
             b.l = 0;
             char* p = rttype::constexprout::lltoa(a, b.c);
             unsigned len = 0;
@@ -388,9 +392,9 @@ namespace rttype{
             b.l = len;
             return b;
         }
-
-        static inline constexpr ret ui(unsigned long long a) {
-            ret b{};
+        template<unsigned N=64>
+        static inline constexpr ret<N> ui(unsigned long long a) {
+            ret<N> b{};
             char* p=rttype::constexprout::ulltoa(a, b.c);
             unsigned len=0;
             while(p[len])len++;
@@ -402,27 +406,29 @@ namespace rttype{
             b.l=len;
             return b;
         }
-        static inline constexpr ret ch(char c){
-            ret b{};
+        template<unsigned N=64>
+        static inline constexpr ret<N> ch(char c){
+            ret<N> b{};
             b.c[0]=c;
             b.l=1;
             return b;
         }
-        static inline constexpr ret cp(char* c) {
-            ret b{};
+        template<unsigned N=64>
+        static inline constexpr ret<N> cp(char* c) {
+            ret<N> b{};
             b.l=0;
-            while (c[b.l] && b.l < 63) {
+            while (c[b.l] && b.l < N-1) {
                 b.c[b.l] = c[b.l];
                 b.l++;
             }
-            if(c[64] && b.l==63){b.p=c;}
+            if(b.l==N-1 && c[N-1]){b.p=c;}
             b.c[b.l]=0;
             return b;
         }
-        template<typename T>//ptr
-        static inline constexpr ret vp(T* a){
+        template<unsigned N=64,typename T>//ptr
+        static inline constexpr ret<N> vp(T* a){
 	        #if __cplusplus>=201103L
-            ret b{};
+            ret<N> b{};
             b.c[0]='0';
             b.c[1]='x';
             unsigned long long ax=(unsigned long long)a;
@@ -433,7 +439,7 @@ namespace rttype{
 			b.l=rttype::ptr_w_rt+2;
             return b;
             #else
-            ret b{};
+            ret<N> b{};
             b.c[0]='0';
             b.c[1]='x';
             unsigned long long ax=(unsigned long long)a;
@@ -445,8 +451,9 @@ namespace rttype{
             return b;
             #endif
         }
-        static ret fp(long double a) {
-            ret b{};
+        template<unsigned N=64>
+        static inline constexpr ret<N> fp(long double a) {
+            ret<N> b{};
             if (a == 0.0L || a == -0.0L) {
                 b.c[0] = 48;//0
                 b.l=1;
@@ -454,7 +461,7 @@ namespace rttype{
             }
             unsigned idx = 0;
             if(a<0){
-                b.c[idx++] = '-';
+                b.c[idx++] = 45;//-
                 a=-a;
             }
             const long double MAX_ULL = (long double)0xFFFFFFFFFFFFFFFFULL;
@@ -470,25 +477,114 @@ namespace rttype{
             char buf[32];
             int bi = 0;
             do {
-                buf[bi++] = '0' + (int)(ip % 10);
+                buf[bi++] = 48 ^ (int)(ip % 10);
                 ip /= 10;
             } while (ip);
             while (bi--) b.c[idx++] = buf[bi];
-            b.c[idx++] = '.';
+            b.c[idx++] = 46;//'.'
             for (int i = 0; i < 6; i++) {
                 frac *= 10;
                 int digit = (int)frac;
-                b.c[idx++] = '0' + digit;
+                b.c[idx++] = 48 ^ digit;
                 frac -= digit;
             }
-            while (idx > 0 && b.c[idx - 1] == '0') idx--;
-            if (idx > 0 && b.c[idx - 1] == '.') {
-                b.c[idx++] = '0';
+            while (idx > 0 && b.c[idx - 1] == 48) idx--;
+            if (idx > 0 && b.c[idx - 1] == 46) {//'.'
+                b.c[idx++] = 48;
             }
             b.l = idx;
             return b;
         }
+        }
+        template<unsigned N=64>
+        static inline constexpr ret<N> outf(char a){
+            ret<N> b{};
+            b.l=1;
+            b.c[0]=a;
+            return b;
+        }
+        template<unsigned N=64>
+        static inline constexpr ret<N> outf(float a){
+            ret<N> b{};
+            b=out_fn::fp<N>(a);
+            return b;
+        }
+        template<unsigned N=64>
+        static inline constexpr ret<N> outf(double a){
+            ret<N> b{};
+            b=out_fn::fp<N>(a);
+            return b;
+        }
+        template<unsigned N=64>
+        static inline constexpr ret<N> outf(long double a){
+            ret<N> b{};
+            b=out_fn::fp<N>(a);
+            return b;
+        }
+        template<unsigned N=64>
+        static inline constexpr ret<N> outf(bool a){
+            ret<N> b{};
+            b.l=1;
+            if(a)
+            {b.c[0]=49;}
+            else{b.c[0]=48;}
+            return b;
+        }
+        template<unsigned N=64,typename T>
+        static inline constexpr ret<N> outf(T* a){
+            ret<N> b{};
+            b=out_fn::vp<N>(a);
+            return b;
+        }
+        template<unsigned N=64,typename T>
+        static inline constexpr ret<N> outf(T a) {
+            ret<N> b{};
+            if(rth_io::is_integer<T>::v){
+                if(rth_io::is_unsigned_integer<T>::v){
+                    b=out_fn::ui<N>(a);
+                }else{
+                    b=out_fn::si<N>(a);
+                }
+            }else if(rth_io::is_charptr<T>::v){
+                b=out_fn::cp<N>(a);
+            }else{
+                b=out_fn::si<N>(int(a));
+            }
+            return b;
+        }
+#define fdf_rt(T) template<unsigned N>\
+    static inline constexpr constexprout_t<N> operator<<(constexprout_t<N> a, T b) {\
+        ret<N> r = outf<N>(b);\
+        for (unsigned i = 0; i < r.l && (a.l + i) < N; i++)\
+        { a.c[a.l + i] = r.c[i]; }\
+        if (a.l + r.l > N) a.l = N;\
+        else a.l += r.l;\
+        return a;\
     }
+        fdf_rt(double);
+        fdf_rt(float);
+        fdf_rt(long double);
+        fdf_rt(int);
+        fdf_rt(unsigned);
+        fdf_rt(long);
+        template<unsigned N,typename T>
+        static inline constexpr constexprout_t<N> operator<<(constexprout_t<N> a,T b){//bug
+            ret<N> r=outf<N>(b);
+            unsigned i=0;
+            if(r.p){
+                while(i<r.l && (a.l+i)<N) {
+                    a.c[a.l+i]=r.c[i];
+                    i++;
+                }
+                a.l+=i;
+                return a;
+            }
+            for(;i<r.l;i++){
+                a.c[a.l+i]=r.c[i];
+            }
+            a.l+=i;
+            return a;
+        }
     }
 }
 
