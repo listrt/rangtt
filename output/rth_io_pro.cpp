@@ -243,7 +243,8 @@ namespace rth_io{
         return {rttype::out_, 1};
     }
     static rttype::oitype outf(bool a) {
-        out_fn::fp((long double)a);
+        if(a){writer("1",2);}
+        else{writer("0",2);}
         return {rttype::out_, 1};
     }
     template<typename T>
@@ -332,6 +333,8 @@ namespace rttype{
         struct constexprout_t{
             char c[N]={};
             unsigned l=0;
+            constexpr const char* c_str() const{return c;}
+            constexpr unsigned size() const{return l;}
         };
         //template<typename T>
         //static inline constexpr rttype::constexprout_t operator<<(constexprout_t a,double b){
@@ -340,7 +343,7 @@ namespace rttype{
         template<unsigned N=64>
         struct ret{
             char c[N]={};
-            char* p;
+            char* p=0;
             unsigned l=0;
         };
         static constexpr char* lltoa(long long val, char* buf){
@@ -371,7 +374,7 @@ namespace rttype{
 	        *p^=(*p);
 	        do{
 	            unsigned long long rem = val % 10;
-	            *--p='0' | (char)rem;
+	            *--p=48 | (char)rem;
 	            val/=10;
 	        }while(val);
 	        return p;
@@ -380,30 +383,22 @@ namespace rttype{
         template<unsigned N=64>
         static inline constexpr ret<N> si(long long a) {
             ret<N> b{};
-            b.l = 0;
-            char* p = rttype::constexprout::lltoa(a, b.c);
-            unsigned len = 0;
-            while (p[len]) len++;
-            if (p != b.c) {
-                for (unsigned i = 0; i < len; i++) {
-                    b.c[i] = p[i];
-                }
-            }
-            b.l = len;
+            char tmp[21];
+            char* p = rttype::constexprout::lltoa(a, tmp);
+            unsigned len=20-(p-tmp);
+            for(unsigned i=0; i < len && i<N-1;i++) b.c[i]=p[i];
+            b.l=len;
             return b;
         }
+        
         template<unsigned N=64>
         static inline constexpr ret<N> ui(unsigned long long a) {
             ret<N> b{};
-            char* p=rttype::constexprout::ulltoa(a, b.c);
-            unsigned len=0;
-            while(p[len])len++;
-            if (p != b.c) {
-                for (unsigned i = 0; i < len; i++) {
-                    b.c[i]=p[i];
-                }
-            }
-            b.l=len;
+            char tmp[21];
+            char* p = rttype::constexprout::ulltoa(a, tmp);
+            unsigned len = 20 - (p - tmp);
+            for (unsigned i = 0; i < len && i < N; i++) b.c[i] = p[i];
+            b.l = len;
             return b;
         }
         template<unsigned N=64>
@@ -414,15 +409,15 @@ namespace rttype{
             return b;
         }
         template<unsigned N=64>
-        static inline constexpr ret<N> cp(char* c) {
+        static inline constexpr ret<N> cp(const char* c) {
             ret<N> b{};
-            b.l=0;
+            b.l = 0;
             while (c[b.l] && b.l < N-1) {
                 b.c[b.l] = c[b.l];
                 b.l++;
             }
-            if(b.l==N-1 && c[N-1]){b.p=c;}
-            b.c[b.l]=0;
+            if (b.l == N-1 && c[b.l]) { b.p = const_cast<char*>(c); }
+            b.c[b.l] = 0;
             return b;
         }
         template<unsigned N=64,typename T>//ptr
@@ -530,6 +525,30 @@ namespace rttype{
             else{b.c[0]=48;}
             return b;
         }
+        #define sifnd_rt(T) \
+        template<unsigned N=64>\
+        static inline constexpr ret<N> outf(T a){\
+            ret<N> b{};\
+            b=out_fn::si<N>((long long)a);\
+            return b;\
+        }
+        ;
+        sifnd_rt(short);
+        sifnd_rt(int);
+        sifnd_rt(long);
+        sifnd_rt(long long);
+        #define uifnd_rt(T) \
+        template<unsigned N=64>\
+        static inline constexpr ret<N> outf(T a){\
+            ret<N> b{};\
+            b=out_fn::ui<N>((unsigned long long)a);\
+            return b;\
+        }
+        uifnd_rt(unsigned short);
+        uifnd_rt(unsigned);
+        uifnd_rt(unsigned long);
+        uifnd_rt(unsigned long long);
+        #undef uifnd_rt
         template<unsigned N=64,typename T>
         static inline constexpr ret<N> outf(T* a){
             ret<N> b{};
@@ -555,10 +574,11 @@ namespace rttype{
 #define fdf_rt(T) template<unsigned N>\
     static inline constexpr constexprout_t<N> operator<<(constexprout_t<N> a, T b) {\
         ret<N> r = outf<N>(b);\
-        for (unsigned i = 0; i < r.l && (a.l + i) < N; i++)\
+        unsigned i = 0;\
+        for (; i < r.l && (a.l + i) < N - 1; i++)\
         { a.c[a.l + i] = r.c[i]; }\
-        if (a.l + r.l > N) a.l = N;\
-        else a.l += r.l;\
+        a.l += i;\
+        a.c[a.l] = 0;\
         return a;\
     }
         fdf_rt(double);
@@ -567,22 +587,50 @@ namespace rttype{
         fdf_rt(int);
         fdf_rt(unsigned);
         fdf_rt(long);
+        fdf_rt(short);
+        fdf_rt(unsigned short);
+        fdf_rt(long long);
+        fdf_rt(unsigned long long);
+        fdf_rt(char);
+        fdf_rt(signed char);
+        fdf_rt(unsigned char);
+        fdf_rt(bool);
+        #undef fdf_rt
+        template<unsigned N>
+        static inline constexpr constexprout_t<N> operator<<(constexprout_t<N> a, const char* s) {
+            unsigned i = 0;
+            while (s[i] && (a.l + i) < N - 1) {
+                a.c[a.l + i] = s[i];
+                i++;
+            }
+            a.l+=i;
+            a.c[a.l]=0;
+            return a;
+        }
         template<unsigned N,typename T>
         static inline constexpr constexprout_t<N> operator<<(constexprout_t<N> a,T b){//bug
             ret<N> r=outf<N>(b);
             unsigned i=0;
             if(r.p){
-                while(i<r.l && (a.l+i)<N) {
+                while(i<r.l && (a.l+i)<N-1) {
                     a.c[a.l+i]=r.c[i];
                     i++;
                 }
                 a.l+=i;
+                unsigned j = 0;
+                while(r.p[j] && (a.l+j)<N-1) {
+                    a.c[a.l+j]=r.p[j];
+                    j++;
+                }
+                a.l+=j;
+                a.c[a.l]='\0';
                 return a;
             }
-            for(;i<r.l;i++){
+            for(;i<r.l && (a.l+i)<N-1;i++){
                 a.c[a.l+i]=r.c[i];
             }
             a.l+=i;
+            a.c[a.l]=0;
             return a;
         }
     }
@@ -602,6 +650,7 @@ namespace rttype{
             unsigned l=0;
         };
         struct out{};
+        struct outc{};
         namespace out_fn{
             template<unsigned N=64>
             static inline ret<N> si(long long a) {
@@ -644,7 +693,7 @@ namespace rttype{
                     b.c[b.l] = c[b.l];
                     b.l++;
                 }
-                if(b.l==N-1 && c[N-1]){b.p=const_cast<char*>(c);}
+                if(b.l==N-1 && c[b.l]){b.p=const_cast<char*>(c);}
                 b.c[b.l]=0;
                 return b;
             }
@@ -732,6 +781,30 @@ namespace rttype{
             b.c[0]=a?49:48;
             return b;
         }
+        #define sifnd_rt(T) \
+        template<unsigned N=64>\
+        static inline ret<N> outf(T a){\
+            ret<N> b{};\
+            b=out_fn::si<N>((long long)a);\
+            return b;\
+        }
+        ;
+        sifnd_rt(short);
+        sifnd_rt(int);
+        sifnd_rt(long);
+        sifnd_rt(long long);
+        #define uifnd_rt(T) \
+        template<unsigned N=64>\
+        static inline ret<N> outf(T a){\
+            ret<N> b{};\
+            b=out_fn::ui<N>((unsigned long long)a);\
+            return b;\
+        }
+        uifnd_rt(unsigned short);
+        uifnd_rt(unsigned);
+        uifnd_rt(unsigned long);
+        uifnd_rt(unsigned long long);
+        #undef uifnd_rt
         template<unsigned N=64,typename T>
         static inline ret<N> outf(T* a){
             return out_fn::vp<N>(a);
@@ -755,41 +828,73 @@ namespace rttype{
 #define fdf_rt(T) template<unsigned N>\
     static inline fastout_t<N> operator<<(fastout_t<N> a, T b) {\
         ret<N> r = outf<N>(b);\
-        for (unsigned i = 0; i < r.l && (a.l + i) < N; i++)\
+        unsigned i = 0;\
+        for (; i < r.l && (a.l + i) < N - 1; i++)\
         { a.c[a.l + i] = r.c[i]; }\
-        if (a.l + r.l > N) a.l = N;\
-        else a.l += r.l;\
+        a.l += i;\
+        a.c[a.l] = 0;\
         return a;\
     }
         fdf_rt(double);
         fdf_rt(float);
         fdf_rt(long double);
-        fdf_rt(int);
+        //fdf_rt(int);
         fdf_rt(unsigned);
         fdf_rt(long);
-
+        fdf_rt(short);
+        fdf_rt(unsigned short);
+        fdf_rt(long long);
+        fdf_rt(unsigned long long);
+        fdf_rt(char);
+        fdf_rt(signed char);
+        fdf_rt(unsigned char);
+        fdf_rt(bool);
+        #undef fdf_rt
         template<unsigned N>
         static inline fastout_t<N> operator<<(fastout_t<N> a, rttype::fastout::out b){
             writer(a.c,a.l);
             return a;
         }
-
+        template<unsigned N>
+        static inline fastout_t<N> operator<<(fastout_t<N> a, rttype::fastout::outc b){
+            writer(a.c,a.l);
+            return {};
+        }
+        template<unsigned N=64>
+        static inline fastout_t<N> operator<<(fastout_t<N> a, const char* s) {
+            unsigned i = 0;
+            while (s[i] && (a.l + i) < N - 1) {
+                a.c[a.l + i] = s[i];
+                i++;
+            }
+            a.l+=i;
+            a.c[a.l]=0;
+            return a;
+        }
         template<unsigned N,typename T>
         static inline fastout_t<N> operator<<(fastout_t<N> a, T b){
             ret<N> r=outf<N>(b);
             unsigned i=0;
             if(r.p){
-                while(i<r.l&&(a.l+i)<N) {
+                while(i<r.l && (a.l+i)<N-1) {
                     a.c[a.l+i]=r.c[i];
                     i++;
                 }
                 a.l+=i;
+                unsigned j = 0;
+                while(r.p[j] && (a.l+j)<N-1) {
+                    a.c[a.l+j]=r.p[j];
+                    j++;
+                }
+                a.l+=j;
+                a.c[a.l]='\0';
                 return a;
             }
-            for(;i<r.l && (a.l+i)<N;i++){
+            for(;i<r.l && (a.l+i)<N-1;i++){
                 a.c[a.l+i]=r.c[i];
             }
             a.l+=i;
+            a.c[a.l]=0;
             return a;
         }
         //
